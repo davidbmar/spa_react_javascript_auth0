@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>S3 Signed URL Upload Test</title>
+</head>
+<body>
+  <h1>S3 Signed URL Upload Test</h1>
+
+  <label for="urlInput">Upload URL:</label>
+  <input id="urlInput" type="text" value="https://3llwzi00h3.execute-api.us-east-2.amazonaws.com/test/file-upload">
+  <br>
+  <br>
+  <label for="bucketInput">Bucket Name:</label>
+  <input id="bucketInput" type="text" value="presigned-url-audio-uploads">
+  <br>
+  <br>
+  <label for="fileInput">Select Audio File:</label>
+  <input id="fileInput" type="file" accept="audio/*">
+  <br>
+  <br>
+  <button id="uploadButton">Upload to S3</button>
+
+  <script type="module">
+    import { uploadToS3 } from './s3Uploader.js';
+    import { generateFilename } from './filenameGenerator.js';
+    /**
+     * Handles the file upload when the upload button is clicked.
+     */
+    async function handleUpload() {
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('Please select a file to upload.');
+        return;
+      }
+
+      const uploadURL = document.getElementById('urlInput').value;
+      const bucketName = document.getElementById('bucketInput').value;
+      const filename = generateFilename();
+
+      try {
+        await uploadToS3(file, filename, bucketName, uploadURL);
+        alert('File uploaded successfully!');
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        alert('An error occurred while uploading the file.');
+      }
+    }
+
+    // Attach event listener to the upload button
+    document.getElementById('uploadButton').addEventListener('click', handleUpload);
+  </script>
+</body>
+</html>

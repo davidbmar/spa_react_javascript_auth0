@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recording</title>
+</head>
+<body>
+    <div>
+        <button id="toggleRecording">Start Recording</button>
+        <div>
+            <label for="chunkDuration">Chunk Duration (seconds):</label>
+            <input type="range" id="chunkDuration" min="5" max="300" step="1" value="15">
+            <span id="chunkDurationValue">15 seconds</span>
+        </div>
+        <div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th>Play</th>
+                    </tr>
+                </thead>
+                <tbody id="audioChunksList"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const mediaRecorderRef = { current: null };
+        let audioChunks = [];
+        let isRecording = false;
+        let chunkDuration = 15;
+        let db = null;
+
+        const toggleRecordingBtn = document.getElementById("toggleRecording");
+        const chunkDurationInput = document.getElementById("chunkDuration");
+        const chunkDurationValue = document.getElementById("chunkDurationValue");
+        const audioChunksList = document.getElementById("audioChunksList");
+
+        window.onload = () => {
+            const request = indexedDB.open("audioDB", 1);
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                db.createObjectStore("audioChunks", { autoIncrement: true });
+            };
+
+            request.onsuccess = (event) => {
+                db = event.target.result;
+            };
+
+            request.onerror = (event) => {
+                console.error("IndexedDB error:", event.target.errorCode);
+            };
+        };
+
+        toggleRecordingBtn.addEventListener("click", () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        const startRecording = () => {
+            isRecording = true;
+            audioChunks = [];
+            toggleRecordingBtn.textContent = "Stop Recording";
+
+            navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+                mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: "audio/webm" });
+                mediaRecorderRef.current.addEventListener("dataavailable", handleDataAvailable);
+                mediaRecorderRef.current.start(chunkDuration * 1000);
+            });
+        };
+
+        const stopRecording = () => {
+            isRecording = false;
+            toggleRecordingBtn.textContent = "Start Recording";
+            mediaRecorderRef.current.stop();
+        };
+
+        const handleDataAvailable = (event) => {
+            if (event.data.size > 0) {
+                const audioBlob = new Blob([event.data], { type: "audio/webm" });
+                saveAudioChunk(audioBlob);
+            }
+        };
+
+        const saveAudioChunk = (audioBlob) => {
+            const transaction = db.transaction(["audioChunks"], "readwrite");
+            const objectStore = transaction.objectStore("audioChunks");
+            const addRequest = objectStore.add(audioBlob);
+
+            addRequest.onsuccess = (event) => {
+                const audioBlobId = event.target.result;
+                audioChunks.push({ id: audioBlobId, blob: audioBlob });
+                renderAudioChunks();
+            };
+        };
+
+        const playAudioChunk = (audioBlobId) => {
+            const transaction = db.transaction(["audioChunks"]);
+            const objectStore = transaction.objectStore("audioChunks");
+            const getRequest = objectStore.get(audioBlobId);
+
+            getRequest.onsuccess = (event) => {
+                const audioBlob = event.target.result;
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audio = new Audio(audioUrl);
+                audio.play();
+            };
+        };
+
+        const renderAudioChunks = () => {
+            audioChunksList.innerHTML = "";
+            audioChunks.forEach((audioChunk, index) => {
+                const row = document.createElement("tr");
+                const fileNameCell = document.createElement("td");
+                const playCell = document.createElement("td");
+                const playButton = document.createElement("button");
+
+                fileNameCell.textContent = `Recording ${index + 1}`;
+                playButton.textContent = "Play";
+                playButton.addEventListener("click", () => playAudioChunk(audioChunk.id));
+
+                playCell.appendChild(playButton);
+                row.appendChild(fileNameCell);
+                row.appendChild(playCell);
+                audioChunksList.appendChild(row);
+            });
+        };
+
+        chunkDurationInput.addEventListener("input", () => {
+            chunkDuration = parseInt(chunkDurationInput.value);
+            chunkDurationValue.textContent = `${chunkDuration} seconds`;
+        });
+
+        window.onbeforeunload = () => {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+                mediaRecorderRef.current.stop();
+            }
+        };
+    </script>
+</body>
+</html>

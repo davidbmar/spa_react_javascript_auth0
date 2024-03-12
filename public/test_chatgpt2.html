@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recorder</title>
+</head>
+<body>
+    <button id="startRecording">Start Recording</button>
+    <button id="stopRecording" disabled>Stop Recording</button>
+    <input type="range" id="chunkDuration" min="5" max="30" value="5">
+    <span id="chunkDurationValue">5</span> seconds
+    
+    <div id="recordingsList"></div>
+    
+    <script>
+let mediaRecorder;
+let startTime;
+let chunkDuration = 5;
+let chunkCount = 0;
+let isRecording = false;
+
+const startRecordingButton = document.getElementById('startRecording');
+const stopRecordingButton = document.getElementById('stopRecording');
+const chunkDurationSlider = document.getElementById('chunkDuration');
+const chunkDurationValue = document.getElementById('chunkDurationValue');
+const recordingsList = document.getElementById('recordingsList');
+
+startRecordingButton.addEventListener('click', startRecording);
+stopRecordingButton.addEventListener('click', stopRecording);
+chunkDurationSlider.addEventListener('input', updateChunkDuration);
+
+function startRecording() {
+    console.log('Recording started');
+    let secondsCounter = 0;
+    let timer = setInterval(() => {
+        secondsCounter++;
+        console.log(`Elapsed time: ${secondsCounter} seconds`);
+        if (secondsCounter === chunkDuration) {
+            console.log(`Creating new chunk after ${chunkDuration} seconds`);
+            createChunk();
+        }
+    }, 1000);
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = event => {
+                console.log('Data available');
+                const chunks = [];
+                chunks.push(event.data);
+                const blob = new Blob(chunks, { type: 'audio/wav' });
+                const audioURL = URL.createObjectURL(blob);
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = audioURL;
+                const chunkId = ++chunkCount;
+                audio.setAttribute('id', `audioChunk${chunkId}`);
+                console.log(`Appending audio chunk ${chunkId}`);
+                recordingsList.appendChild(audio);
+            };
+            mediaRecorder.onstart = () => {
+                startTime = Date.now();
+                isRecording = true;
+                startRecordingButton.disabled = true;
+                stopRecordingButton.disabled = false;
+                console.log('Recording timer started');
+            };
+            mediaRecorder.start();
+        })
+        .catch(console.error)
+        .finally(() => {
+            clearInterval(timer); // Stop the timer when recording ends
+        });
+}
+
+function stopRecording() {
+    console.log('Recording stopped');
+    if (isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        startRecordingButton.disabled = false;
+        stopRecordingButton.disabled = true;
+        console.log('Recording timer stopped');
+    }
+}
+
+function updateChunkDuration() {
+    chunkDuration = parseInt(chunkDurationSlider.value);
+    chunkDurationValue.textContent = chunkDuration;
+}
+
+function createChunk() {
+    console.log('Creating new chunk');
+    mediaRecorder.requestData();
+}
+
+    </script>
+</body>
+</html>
+

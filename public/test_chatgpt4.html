@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recorder</title>
+</head>
+<body>
+    <button id="startRecording">Start Recording</button>
+    <button id="stopRecording" disabled>Stop Recording</button>
+    <input type="range" id="chunkDuration" min="5" max="30" value="5">
+    <span id="chunkDurationValue">5</span> seconds
+    <div id="recordingInfo"></div>
+    <div id="recordingsList"></div>
+
+    <script>
+        let mediaRecorder;
+        let startTime;
+        let chunkDuration = 5;
+        let chunkCount = 0;
+        let isRecording = false;
+        let stopRecordingFlag = false;
+
+        const startRecordingButton = document.getElementById('startRecording');
+        const stopRecordingButton = document.getElementById('stopRecording');
+        const chunkDurationSlider = document.getElementById('chunkDuration');
+        const chunkDurationValue = document.getElementById('chunkDurationValue');
+        const recordingInfo = document.getElementById('recordingInfo');
+        const recordingsList = document.getElementById('recordingsList');
+
+        startRecordingButton.addEventListener('click', startRecording);
+        stopRecordingButton.addEventListener('click', stopRecording);
+        chunkDurationSlider.addEventListener('input', updateChunkDuration);
+
+        // Function to start recording
+        function startRecording() {
+            console.log('Recording started');
+            stopRecordingFlag = false;
+            startRecordingChunk();
+        }
+
+        // Function to start recording a single chunk
+        function startRecordingChunk() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = event => {
+                        const chunks = [];
+                        chunks.push(event.data);
+                        const blob = new Blob(chunks, { type: 'audio/wav' });
+                        const audioURL = URL.createObjectURL(blob);
+                        const audio = document.createElement('audio');
+                        audio.controls = true;
+                        audio.src = audioURL;
+                        const chunkId = ++chunkCount;
+                        audio.setAttribute('id', `audioChunk${chunkId}`);
+                        recordingsList.appendChild(audio);
+                    };
+                    mediaRecorder.start();
+                    startTime = Date.now();
+                    isRecording = true;
+                    updateRecordingInfo();
+                    startRecordingButton.disabled = true;
+                    stopRecordingButton.disabled = false;
+                    setTimeout(stopRecordingChunk, chunkDuration * 1000);
+                })
+                .catch(console.error);
+        }
+
+        // Function to stop recording the current chunk
+        function stopRecordingChunk() {
+            mediaRecorder.stop();
+            isRecording = false;
+            updateRecordingInfo();
+
+            if (stopRecordingFlag) {
+                stopRecording();
+            } else {
+                startRecordingChunk();
+            }
+        }
+
+        // Function to stop the entire recording process
+        function stopRecording() {
+            console.log('Recording stopped');
+            stopRecordingFlag = true;
+            startRecordingButton.disabled = false;
+            stopRecordingButton.disabled = true;
+        }
+
+        // Function to update the chunk duration based on the slider value
+        function updateChunkDuration() {
+            chunkDuration = parseInt(chunkDurationSlider.value);
+            chunkDurationValue.textContent = chunkDuration;
+        }
+
+        // Function to update the recording information display
+        function updateRecordingInfo() {
+            const duration = isRecording ? Date.now() - startTime : 0;
+            const minutes = Math.floor(duration / 60000);
+            const seconds = ((duration % 60000) / 1000).toFixed(0);
+            const formattedDuration = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            recordingInfo.textContent = `Chunk: ${chunkCount}, Duration: ${formattedDuration}`;
+        }
+    </script>
+</body>
+</html>
